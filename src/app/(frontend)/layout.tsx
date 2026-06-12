@@ -1,19 +1,17 @@
 import React from 'react'
-import './styles.css'
+import { figtree, bricolage } from '@/lib/fonts'
+import './globals.css'
 
 export const metadata = {
-  description: 'A blank template using Payload in a Next.js app.',
-  title: 'Payload Blank Template',
+  title: 'Matab — clinic management, simplified',
+  description:
+    'Multi-tenant clinic management for small clinics — appointments, patients and staff in one calm dashboard.',
 }
 
-export default async function RootLayout(props: { children: React.ReactNode }) {
-  const { children } = props
-
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body>
-        <main>{children}</main>
-      </body>
+    <html lang="en" className={`${figtree.variable} ${bricolage.variable}`}>
+      <body>{children}</body>
     </html>
   )
 }

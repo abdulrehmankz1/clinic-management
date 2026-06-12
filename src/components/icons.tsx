@@ -1,0 +1,28 @@
+// Single icon source — lucide-react (the shadcn standard), re-exported under
+// app-level names so swapping a glyph is a one-line change here.
+
+export {
+  LayoutGrid as IconDashboard,
+  CalendarDays as IconCalendar,
+  Users as IconUsers,
+  UserPlus as IconStaff,
+  SlidersHorizontal as IconSettings,
+  LogOut as IconLogout,
+  Search as IconSearch,
+  Plus as IconPlus,
+  X as IconX,
+  ChevronLeft as IconChevronLeft,
+  ChevronRight as IconChevronRight,
+  Clock as IconClock,
+  Phone as IconPhone,
+  TriangleAlert as IconAlert,
+  Check as IconCheck,
+  Building2 as IconBuilding,
+  Stethoscope as IconStethoscope,
+  ArrowRight as IconArrowRight,
+  Pencil as IconEdit,
+  CalendarCheck2 as IconCalendarCheck,
+  UserX as IconUserX,
+  UserRoundPlus as IconUserPlus,
+  ArrowUpRight as IconArrowUpRight,
+} from 'lucide-react'

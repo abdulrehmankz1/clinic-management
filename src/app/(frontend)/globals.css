@@ -1,0 +1,279 @@
+/* ============================================================
+   Matab — globals.css (drop-in replacement)
+   Tailwind CSS v4 + shadcn/ui token mapping
+   ============================================================ */
+
+@import 'tailwindcss';
+/* required by the generated shadcn (base-ui) components — keep */
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:is(.dark *));
+
+/* ---------- 1. Matab palette → shadcn variables ----------
+   "Clinical calm": deep teal brand on warm paper surfaces. */
+:root {
+  /* surfaces & text */
+  --background: #f7f6f2; /* canvas — warm paper, not sterile grey */
+  --foreground: #182320; /* ink — all body text */
+  --card: #ffffff;
+  --card-foreground: #182320;
+  --popover: #ffffff;
+  --popover-foreground: #182320;
+
+  /* brand */
+  --primary: #0d6e60; /* deep medical teal */
+  --primary-foreground: #ffffff;
+  --secondary: #e2efec; /* primary-soft */
+  --secondary-foreground: #0d6e60;
+  --accent: #e2efec;
+  --accent-foreground: #0d6e60;
+
+  /* support */
+  --muted: #efeee8;
+  --muted-foreground: #65716c;
+  --destructive: #b3261e;
+  --destructive-foreground: #ffffff;
+  --border: #e6e4dc;
+  --input: #dfddd4;
+  --ring: #0d6e60;
+
+  /* status / semantic extras (Matab-specific) */
+  --amber: #b45309;
+  --amber-soft: #faf3e6;
+  --red-soft: #fbeceb;
+  --blue: #2563ab;
+  --blue-soft: #e9f0f9;
+  --green-strong: #1a7a50;
+  --green-soft: #e8f4ec;
+
+  /* charts: single-series discipline */
+  --chart-1: #0d6e60;
+  --chart-grid: #e6e4dc;
+
+  /* dark sidebar (app chrome) */
+  --sidebar: #0c211d;
+  --sidebar-soft: #122b26;
+  --sidebar-foreground: #9fb5ae;
+  --sidebar-active-fg: #f3f7f5;
+  --sidebar-accent: #3ad6bb;
+  --sidebar-border: rgba(255, 255, 255, 0.07);
+
+  --radius: 0.75rem; /* 12px cards/dialogs; md = 8px for buttons/inputs */
+}
+
+/* ---------- 2. Expose to Tailwind v4 utilities ---------- */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-amber: var(--amber);
+  --color-amber-soft: var(--amber-soft);
+  --color-red-soft: var(--red-soft);
+  --color-blue: var(--blue);
+  --color-blue-soft: var(--blue-soft);
+  --color-green-strong: var(--green-strong);
+  --color-green-soft: var(--green-soft);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-soft: var(--sidebar-soft);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-active-fg: var(--sidebar-active-fg);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-border: var(--sidebar-border);
+
+  /* typography (variables set by next/font in layout.tsx — see fonts.ts) */
+  --font-sans: var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-bricolage), var(--font-figtree), ui-sans-serif, sans-serif;
+
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 4px);
+  --radius-sm: calc(var(--radius) - 6px);
+}
+
+/* ---------- 3. Base ---------- */
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  /* visible focus everywhere — accessibility floor */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  ::selection {
+    background: var(--secondary);
+  }
+}
+
+/* ---------- 4. Matab utilities ---------- */
+@layer utilities {
+  /* numeric alignment for times, amounts, MRN, KPI numbers */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  /* flat card: the Matab surface — hairline + a whisper of depth */
+  .card-flat {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 1px 2px rgb(28 36 34 / 0.04);
+  }
+  /* doctor off-hours zones on the Day Rail — calm flat tone, no noisy stripes */
+  .stripes {
+    background-color: #f1f0ea;
+  }
+  /* day-rail scroll viewport: slim, unobtrusive scrollbars */
+  .rail-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(28 36 34 / 0.18) transparent;
+  }
+  .rail-scroll::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .rail-scroll::-webkit-scrollbar-thumb {
+    background: rgb(28 36 34 / 0.18);
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  .rail-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  /* "now" indicator pulse on the Day Rail */
+  .now-dot::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 9999px;
+    background: rgb(225 29 72 / 0.25);
+    animation: now-pulse 2.2s ease-out infinite;
+  }
+  @keyframes now-pulse {
+    0% {
+      transform: scale(0.6);
+      opacity: 1;
+    }
+    70%,
+    100% {
+      transform: scale(1.6);
+      opacity: 0;
+    }
+  }
+  /* skeleton shimmer (loading states) */
+  .skeleton {
+    background: linear-gradient(90deg, var(--muted) 25%, #e6ebe9 37%, var(--muted) 63%);
+    background-size: 400% 100%;
+    animation: matab-shimmer 1.4s ease infinite;
+    border-radius: var(--radius-sm);
+  }
+  @keyframes matab-shimmer {
+    0% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0 50%;
+    }
+  }
+}
+
+/* ---------- 5. shadcn de-shadowing (cards stay flat) ----------
+   Shadows allowed ONLY on overlays (dialog/sheet/popover/dropdown). */
+[data-slot='card'] {
+  box-shadow: 0 1px 2px rgb(28 36 34 / 0.04);
+  border: 1px solid var(--border);
+}
+[data-slot='dialog-content'],
+[data-slot='sheet-content'],
+[data-slot='popover-content'],
+[data-slot='dropdown-menu-content'],
+[data-slot='select-content'] {
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+/* ============================================================
+   APP CSS BELOW (kept per guide: "apni custom app CSS neeche")
+   Compatibility aliases for legacy class names still used by
+   screens that haven't had their sweep pass yet. Each screen
+   pass migrates its usages to the canonical tokens above, and
+   this section shrinks until it can be deleted.
+   ============================================================ */
+@theme {
+  --color-canvas: var(--background); /* legacy: bg-canvas → bg-background */
+  --color-surface: var(--card); /* legacy: bg-surface → bg-card */
+  --color-ink: var(--foreground); /* legacy: text-ink → text-foreground */
+  --color-faint: #97a09a; /* quietest text (timestamps, counts) */
+  --color-red: var(--destructive); /* legacy: text-red → text-destructive */
+  --color-primary-soft: var(--secondary); /* legacy: bg-primary-soft → bg-secondary */
+  --color-primary-hover: #0a584d; /* button hover tone */
+  --color-status-completed-bg: var(--green-soft);
+  --color-status-completed-fg: var(--green-strong);
+  --color-status-cancelled-bg: var(--muted);
+  --color-status-noshow-bg: var(--amber-soft);
+  --shadow-overlay: 0 8px 24px rgb(0 0 0 / 0.08); /* chart tooltip */
+}
+
+@layer utilities {
+  /* legacy alias of .stripes (Day Rail pass will switch to .stripes) */
+  .bg-offhours {
+    background-color: #f1f0ea;
+  }
+  .animate-fade-up {
+    animation: fade-up 0.25s ease-out both;
+  }
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
