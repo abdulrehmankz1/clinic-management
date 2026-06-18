@@ -25,4 +25,6 @@ export {
   UserX as IconUserX,
   UserRoundPlus as IconUserPlus,
   ArrowUpRight as IconArrowUpRight,
+  Printer as IconPrinter,
+  Receipt as IconReceipt,
 } from 'lucide-react'
