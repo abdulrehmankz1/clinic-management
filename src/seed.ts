@@ -109,10 +109,23 @@ const CLINICS: ClinicSpec[] = [
 ]
 
 async function wipe(payload: Payload) {
-  for (const collection of ['appointments', 'patients', 'users', 'tenants'] as const) {
+  // Children before parents.
+  for (const collection of ['invoices', 'visits', 'appointments', 'patients', 'users', 'tenants'] as const) {
     await payload.delete({ collection, where: {}, overrideAccess: true })
   }
 }
+
+const DIAGNOSES = [
+  'Acute pharyngitis', 'Viral fever', 'Hypertension', 'Type 2 diabetes review',
+  'Migraine', 'Gastroenteritis', 'Allergic rhinitis', 'Lower back pain',
+]
+const MEDICINES = [
+  { medicine: 'Amoxicillin', dosage: '500mg', frequency: 'tds', durationDays: 5, instructions: 'After meals' },
+  { medicine: 'Paracetamol', dosage: '500mg', frequency: 'qid', durationDays: 3, instructions: 'If fever' },
+  { medicine: 'Cetirizine', dosage: '10mg', frequency: 'od', durationDays: 7, instructions: 'At night' },
+  { medicine: 'Omeprazole', dosage: '20mg', frequency: 'od', durationDays: 14, instructions: 'Before breakfast' },
+  { medicine: 'Metformin', dosage: '500mg', frequency: 'bd', durationDays: 30, instructions: 'With food' },
+] as const
 
 export async function seed(payload: Payload) {
   payload.logger.info('Seeding demo data…')
@@ -183,7 +196,7 @@ export async function seed(payload: Payload) {
 
     // Doctors (with varied availability patterns)
     const ALL = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
-    const doctorObjs: { id: string; type: string; fromH: number; toH: number; days: string[] }[] = []
+    const doctorObjs: { id: string; type: string; fromH: number; toH: number; days: string[]; fee: number }[] = []
     for (let i = 0; i < clinic.doctors.length; i++) {
       const d = clinic.doctors[i]
       const type = d.type || 'regular'
@@ -211,6 +224,7 @@ export async function seed(payload: Payload) {
         fromH: parseInt((d.from || '09:00').split(':')[0], 10),
         toH: parseInt((d.to || '17:00').split(':')[0], 10),
         days: d.days || ALL,
+        fee: d.fee,
       })
     }
 
@@ -241,6 +255,7 @@ export async function seed(payload: Payload) {
     const generalHours = [9, 10, 11, 12, 14, 15, 16, 17, 18, 19]
     const dayCode = (dt: Date) => ALL[dt.getDay()]
     let made = 0
+    const completedAppts: { id: string; patientId: string; doctorId: string; fee: number }[] = []
     for (let dayOffset = -14; dayOffset <= 3 && made < 70; dayOffset++) {
       for (const doc of doctorObjs) {
         const probeDate = new Date(today)
@@ -269,13 +284,14 @@ export async function seed(payload: Payload) {
           else if (dayOffset === 0) status = pick(['completed', 'checked-in', 'scheduled', 'scheduled'])
           else status = 'scheduled'
 
+          const patientId = pick(patientIds)
           try {
-            await payload.create({
+            const appt = await payload.create({
               collection: 'appointments',
               overrideAccess: true,
               data: {
                 tenant: tenant.id,
-                patient: pick(patientIds),
+                patient: patientId,
                 doctor: doc.id,
                 start: start.toISOString(),
                 durationMins: 15,
@@ -285,6 +301,9 @@ export async function seed(payload: Payload) {
               },
             })
             made++
+            if (status === 'completed') {
+              completedAppts.push({ id: String(appt.id), patientId, doctorId: doc.id, fee: doc.fee })
+            }
           } catch {
             // skip rare slot collisions
           }
@@ -320,7 +339,62 @@ export async function seed(payload: Payload) {
       }
     }
 
-    payload.logger.info(`  ✓ ${clinic.name}: ${doctorObjs.length} doctors, 20 patients, ~${made} appointments`)
+    // v2 — visits + invoices for completed appointments (so the clinical loop,
+    // patient timeline and revenue/outstanding cards are alive on demo day).
+    let visitsMade = 0
+    let invoicesMade = 0
+    for (let i = 0; i < completedAppts.length && visitsMade < 16; i++) {
+      const ca = completedAppts[i]
+      try {
+        const visit = await payload.create({
+          collection: 'visits',
+          overrideAccess: true,
+          data: {
+            tenant: tenant.id,
+            appointment: ca.id,
+            visitDate: new Date().toISOString(),
+            diagnosis: pick(DIAGNOSES),
+            vitals: {
+              bpSystolic: int(110, 135),
+              bpDiastolic: int(70, 90),
+              temperatureC: 36 + Math.round(rnd() * 20) / 10,
+              pulse: int(64, 92),
+            },
+            prescription: [pick(MEDICINES), ...(rnd() < 0.5 ? [pick(MEDICINES)] : [])] as never,
+          } as never,
+        })
+        visitsMade++
+
+        // ~80% of visits get billed; statuses mixed (paid / partial / unpaid).
+        if (rnd() < 0.8) {
+          const roll = rnd()
+          const payments =
+            roll < 0.5
+              ? [{ amount: ca.fee, method: 'cash' as never, receivedAt: new Date().toISOString() }]
+              : roll < 0.75
+                ? [{ amount: Math.round(ca.fee / 2), method: 'card' as never, receivedAt: new Date().toISOString() }]
+                : []
+          await payload.create({
+            collection: 'invoices',
+            overrideAccess: true,
+            data: {
+              tenant: tenant.id,
+              visit: String(visit.id),
+              patient: ca.patientId,
+              lineItems: [{ description: 'Consultation', quantity: 1, unitAmount: ca.fee }],
+              payments,
+            } as never,
+          })
+          invoicesMade++
+        }
+      } catch {
+        // skip (e.g. a visit already exists for this appointment)
+      }
+    }
+
+    payload.logger.info(
+      `  ✓ ${clinic.name}: ${doctorObjs.length} doctors, 20 patients, ~${made} appointments, ${visitsMade} visits, ${invoicesMade} invoices`,
+    )
   }
 
   payload.logger.info('Seed complete.')

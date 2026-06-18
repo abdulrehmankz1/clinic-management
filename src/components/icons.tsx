@@ -27,4 +27,5 @@ export {
   ArrowUpRight as IconArrowUpRight,
   Printer as IconPrinter,
   Receipt as IconReceipt,
+  Wallet as IconWallet,
 } from 'lucide-react'

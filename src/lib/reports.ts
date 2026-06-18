@@ -3,8 +3,8 @@
 // in the tenant's timezone so "today" matches what the clinic sees.
 
 import type { Payload, Where } from 'payload'
-import type { Appointment, Tenant } from '@/payload-types'
-import { DEFAULT_TIMEZONE } from './constants'
+import type { Appointment, Invoice, Patient, Tenant } from '@/payload-types'
+import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from './constants'
 
 /** Offset (tz - UTC) in ms at a given instant. */
 export function tzOffsetMs(date: Date, tz: string): number {
@@ -22,6 +22,14 @@ export function tzOffsetMs(date: Date, tz: string): number {
   for (const p of dtf.formatToParts(date)) if (p.type !== 'literal') map[p.type] = Number(p.value)
   const asUTC = Date.UTC(map.year, map.month - 1, map.day, map.hour === 24 ? 0 : map.hour, map.minute, map.second)
   return asUTC - date.getTime()
+}
+
+/** First day of the current month (00:00) in tz, returned as a UTC Date. */
+export function startOfMonthInTz(tz: string, now = new Date()): Date {
+  const offset = tzOffsetMs(now, tz)
+  const local = new Date(now.getTime() + offset)
+  const startLocalAsUTC = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), 1, 0, 0, 0)
+  return new Date(startLocalAsUTC - offset)
 }
 
 /** Midnight (start of day) in tz for `today + dayOffset`, returned as a UTC Date. */
@@ -127,5 +135,81 @@ export async function getDashboardData(
     newPatients7d,
     series,
     upcoming: upcomingRes.docs as Appointment[],
+  }
+}
+
+export type OutstandingRow = {
+  id: string
+  invoiceNumber: string
+  patientName: string
+  balanceDue: number
+  currency: string
+}
+
+export type RevenueData = {
+  revenueToday: number
+  revenueMonth: number
+  outstandingTotal: number
+  outstanding: OutstandingRow[]
+  currency: string
+}
+
+/**
+ * Revenue & outstanding for the owner dashboard. Revenue is payments-based (so a
+ * partial payment counts the moment it's received) and voided invoices are excluded.
+ * Demo-scale: we read the tenant's non-voided invoices and total their payments in JS
+ * (Payload/Mongo has no first-class sum over a nested array).
+ */
+export async function getRevenueData(
+  payload: Payload,
+  tenantID: string,
+  tenant: Tenant | null,
+): Promise<RevenueData> {
+  const tz = tzOf(tenant)
+  const currency = tenant?.settings?.currency || DEFAULT_CURRENCY
+  const todayStart = startOfDayInTz(tz, 0).getTime()
+  const tomorrow = startOfDayInTz(tz, 1).getTime()
+  const monthStart = startOfMonthInTz(tz).getTime()
+
+  const res = await payload.find({
+    collection: 'invoices',
+    where: { tenant: { equals: tenantID }, voided: { not_equals: true } },
+    limit: 1000,
+    depth: 1,
+    overrideAccess: true,
+  })
+  const invoices = res.docs as Invoice[]
+
+  let revenueToday = 0
+  let revenueMonth = 0
+  let outstandingTotal = 0
+  for (const inv of invoices) {
+    for (const p of inv.payments ?? []) {
+      const t = p.receivedAt ? new Date(p.receivedAt).getTime() : 0
+      const amt = Number(p.amount ?? 0)
+      if (t >= todayStart && t < tomorrow) revenueToday += amt
+      if (t >= monthStart) revenueMonth += amt
+    }
+    outstandingTotal += inv.balanceDue ?? 0
+  }
+
+  const outstanding: OutstandingRow[] = invoices
+    .filter((inv) => (inv.balanceDue ?? 0) > 0)
+    .sort((a, b) => (b.balanceDue ?? 0) - (a.balanceDue ?? 0))
+    .slice(0, 5)
+    .map((inv) => ({
+      id: String(inv.id),
+      invoiceNumber: inv.invoiceNumber ?? '',
+      patientName: (inv.patient as Patient)?.name ?? 'Patient',
+      balanceDue: inv.balanceDue ?? 0,
+      currency: inv.currency || currency,
+    }))
+
+  return {
+    revenueToday: Math.round(revenueToday),
+    revenueMonth: Math.round(revenueMonth),
+    outstandingTotal: Math.round(outstandingTotal),
+    outstanding,
+    currency,
   }
 }

@@ -1,8 +1,8 @@
 import Link from 'next/link'
 import { requireDashboardSession, getPayloadClient } from '@/lib/auth'
 import { getTenantID } from '@/access'
-import { getDashboardData, startOfDayInTz } from '@/lib/reports'
-import { formatTime } from '@/lib/format'
+import { getDashboardData, getRevenueData, startOfDayInTz } from '@/lib/reports'
+import { formatTime, formatMoney } from '@/lib/format'
 import { windowOf, weekdayInTz } from '@/lib/availability'
 import { KpiCard, StatusBadge, EmptyState } from '@/components/ui-kit'
 import { btnPrimary, Avatar } from '@/components/primitives'
@@ -14,6 +14,8 @@ import {
   IconUserPlus,
   IconArrowUpRight,
   IconStaff,
+  IconWallet,
+  IconReceipt,
 } from '@/components/icons'
 import { BarChart } from '@/components/BarChart'
 import { DEFAULT_TIMEZONE } from '@/lib/constants'
@@ -66,6 +68,10 @@ export default async function DashboardHome() {
     }),
   ])
   const recentPatients = recentPatientsRes.docs as Patient[]
+
+  // Revenue & outstanding are owner-only (sensitive money figures).
+  const isOwner = user.role === 'owner'
+  const revenue = isOwner ? await getRevenueData(payload, tenantID, tenant) : null
 
   const todayWeekday = weekdayInTz(todayStart, tz)
   const countByDoctor = new Map<string, number>()
@@ -145,6 +151,60 @@ export default async function DashboardHome() {
           tone="blue"
         />
       </div>
+
+      {/* Revenue (owner only) */}
+      {revenue && (
+        <>
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
+            <KpiCard
+              label="Revenue today"
+              value={formatMoney(revenue.revenueToday, tenant)}
+              icon={<IconWallet size={17} strokeWidth={1.75} />}
+              tone="green"
+            />
+            <KpiCard
+              label="Revenue this month"
+              value={formatMoney(revenue.revenueMonth, tenant)}
+              icon={<IconArrowUpRight size={17} strokeWidth={1.75} />}
+              tone="primary"
+            />
+            <KpiCard
+              label="Outstanding"
+              value={formatMoney(revenue.outstandingTotal, tenant)}
+              hint="Unpaid + partial balances"
+              icon={<IconReceipt size={17} strokeWidth={1.75} />}
+              tone="amber"
+            />
+          </div>
+
+          {revenue.outstanding.length > 0 && (
+            <section className="card-flat overflow-hidden">
+              <div className="flex items-center justify-between border-b px-5 py-4">
+                <h2 className="font-display text-lg font-semibold">Outstanding balances</h2>
+                <span className="tabular text-xs text-faint">
+                  {formatMoney(revenue.outstandingTotal, tenant)} total
+                </span>
+              </div>
+              <ul className="divide-y divide-border">
+                {revenue.outstanding.map((o) => (
+                  <li key={o.id}>
+                    <Link
+                      href={`/dashboard/invoices/${o.id}`}
+                      className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-secondary/40"
+                    >
+                      <span className="tabular w-20 shrink-0 text-[13px] font-medium">{o.invoiceNumber}</span>
+                      <span className="min-w-0 flex-1 truncate text-[13px]">{o.patientName}</span>
+                      <span className="tabular shrink-0 font-semibold text-amber">
+                        {formatMoney(o.balanceDue, { settings: { currency: o.currency } })}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </>
+      )}
 
       {/* Chart + up-next */}
       <div className="grid items-stretch gap-4 xl:grid-cols-3">

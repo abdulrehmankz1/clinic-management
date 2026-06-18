@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import { requireDashboardSession, getPayloadClient } from '@/lib/auth'
 import { getTenantID } from '@/access'
 import { AllergyBanner, Card, StatusBadge, EmptyState, Avatar, btnPrimary, btnGhost } from '@/components/primitives'
-import { IconChevronLeft, IconPhone, IconPlus } from '@/components/icons'
+import { IconChevronLeft, IconPhone, IconPlus, IconPrinter } from '@/components/icons'
 import { ageFromDOB, formatDateTime, formatMoney } from '@/lib/format'
 import type { Appointment, Invoice, Patient, User, Visit } from '@/payload-types'
 import type { AppointmentStatus } from '@/lib/constants'
@@ -217,6 +217,14 @@ export default async function PatientProfile({
                       {v.prescription.length} Rx
                     </span>
                   )}
+                  <Link
+                    href={`/print/prescription/${v.id}`}
+                    target="_blank"
+                    className="shrink-0 text-faint transition-colors hover:text-primary"
+                    title="Print prescription"
+                  >
+                    <IconPrinter size={14} />
+                  </Link>
                 </li>
               ))}
             </ul>
