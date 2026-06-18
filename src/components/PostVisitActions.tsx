@@ -30,6 +30,9 @@ export function PostVisitActions({ visitId, patientId }: { visitId: string; pati
           {busy && <Spinner />}
           Create invoice
         </button>
+        <Link href={`/print/prescription/${visitId}`} target="_blank" className={btnGhost}>
+          Print prescription
+        </Link>
         <Link href={`/dashboard/patients/${patientId}`} className={btnGhost}>
           Patient profile
         </Link>
