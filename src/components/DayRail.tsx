@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useTransition } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   StatusBadge,
@@ -127,12 +128,15 @@ export function DayRail({
   openMinutes,
   closeMinutes,
   nowMinutes,
+  canRecordVisit = false,
 }: {
   columns: DoctorColumn[]
   openMinutes: number
   closeMinutes: number
   /** Current time in tenant tz (minutes from midnight) — only set when viewing today. */
   nowMinutes?: number | null
+  /** Doctors/owners may record a consultation from the details sheet. */
+  canRecordVisit?: boolean
 }) {
   const [view, setView] = useState<'list' | 'rail'>('list')
   const [selected, setSelected] = useState<Block | null>(null)
@@ -315,6 +319,16 @@ export function DayRail({
                   <p className="mt-4 rounded-lg border border-red/25 bg-red-soft px-3 py-2 text-sm text-red">
                     {error}
                   </p>
+                )}
+
+                {canRecordVisit && (selected.status === 'checked-in' || selected.status === 'completed') && (
+                  <Link
+                    href={`/dashboard/visits/new?appointment=${selected.id}`}
+                    className={`${selected.status === 'checked-in' ? btnPrimary : btnGhost} mt-6 w-full`}
+                  >
+                    <IconStethoscope size={15} />
+                    Record visit
+                  </Link>
                 )}
 
                 <div className="mt-6 flex flex-col gap-2">

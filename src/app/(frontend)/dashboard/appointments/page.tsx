@@ -165,6 +165,7 @@ export default async function AppointmentsPage({
         openMinutes={openMinutes}
         closeMinutes={closeMinutes}
         nowMinutes={nowMinutes}
+        canRecordVisit={user.role === 'doctor' || user.role === 'owner'}
       />
     </div>
   )

@@ -4,8 +4,8 @@ import { requireDashboardSession, getPayloadClient } from '@/lib/auth'
 import { getTenantID } from '@/access'
 import { AllergyBanner, Card, StatusBadge, EmptyState, Avatar, btnPrimary, btnGhost } from '@/components/primitives'
 import { IconChevronLeft, IconPhone, IconPlus } from '@/components/icons'
-import { ageFromDOB, formatDateTime } from '@/lib/format'
-import type { Appointment, Patient, User } from '@/payload-types'
+import { ageFromDOB, formatDateTime, formatMoney } from '@/lib/format'
+import type { Appointment, Invoice, Patient, User, Visit } from '@/payload-types'
 import type { AppointmentStatus } from '@/lib/constants'
 
 const HISTORY_PAGE_SIZE = 15
@@ -51,6 +51,28 @@ export default async function PatientProfile({
     overrideAccess: true,
   })
   const appts = history.docs as Appointment[]
+
+  // v2 — clinical history: recent visits and invoices for this patient.
+  const [visitsRes, invoicesRes] = await Promise.all([
+    payload.find({
+      collection: 'visits',
+      where: { tenant: { equals: tenantID }, patient: { equals: id } },
+      sort: '-visitDate',
+      limit: 10,
+      depth: 1,
+      overrideAccess: true,
+    }),
+    payload.find({
+      collection: 'invoices',
+      where: { tenant: { equals: tenantID }, patient: { equals: id } },
+      sort: '-createdAt',
+      limit: 10,
+      depth: 0,
+      overrideAccess: true,
+    }),
+  ])
+  const visits = visitsRes.docs as Visit[]
+  const invoices = invoicesRes.docs as Invoice[]
 
   const age = patient.ageYears ?? (patient.dateOfBirth ? ageFromDOB(patient.dateOfBirth) : null)
 
@@ -122,6 +144,7 @@ export default async function PatientProfile({
           </div>
         </Card>
 
+        <div className="flex flex-col gap-4">
         <Card className="overflow-hidden">
         <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
           <h2 className="text-sm font-semibold">Appointment history</h2>
@@ -169,6 +192,65 @@ export default async function PatientProfile({
           </div>
         )}
         </Card>
+
+        {/* Visits — clinical history */}
+        <Card className="overflow-hidden">
+          <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+            <h2 className="text-sm font-semibold">Visits</h2>
+            <span className="tabular text-xs text-faint">{visitsRes.totalDocs}</span>
+          </div>
+          {visits.length === 0 ? (
+            <p className="px-5 py-6 text-center text-sm text-muted-foreground">No visits recorded yet.</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {visits.map((v) => (
+                <li key={v.id} className="flex items-center gap-4 px-5 py-3 text-sm">
+                  <span className="tabular w-44 shrink-0 text-[13px] text-muted-foreground">
+                    {formatDateTime(v.visitDate, tenant)}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">
+                    <span className="font-medium">{v.diagnosis || 'Consultation'}</span>
+                    <span className="text-muted-foreground"> · {(v.doctor as User)?.name}</span>
+                  </span>
+                  {Array.isArray(v.prescription) && v.prescription.length > 0 && (
+                    <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-primary">
+                      {v.prescription.length} Rx
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        {/* Invoices — billing history */}
+        <Card className="overflow-hidden">
+          <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+            <h2 className="text-sm font-semibold">Invoices</h2>
+            <span className="tabular text-xs text-faint">{invoicesRes.totalDocs}</span>
+          </div>
+          {invoices.length === 0 ? (
+            <p className="px-5 py-6 text-center text-sm text-muted-foreground">No invoices yet.</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {invoices.map((inv) => (
+                <li key={inv.id}>
+                  <Link
+                    href={`/dashboard/invoices/${inv.id}`}
+                    className="flex items-center gap-3 px-5 py-3 text-sm transition-colors hover:bg-canvas/60"
+                  >
+                    <span className="tabular w-24 shrink-0 font-medium">{inv.invoiceNumber}</span>
+                    <span className="tabular min-w-0 flex-1 truncate text-muted-foreground">
+                      {formatMoney(inv.totalAmount ?? 0, { settings: { currency: inv.currency } })}
+                    </span>
+                    <StatusBadge status={inv.voided ? 'voided' : (inv.paymentStatus ?? 'unpaid')} />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+        </div>
       </div>
     </div>
   )
