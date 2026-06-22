@@ -1,7 +1,7 @@
 import { requireSuperAdmin, getPayloadClient } from '@/lib/auth'
-import { SuperConsole, type TenantRow } from '@/components/SuperConsole'
+import { SuperConsole, type TenantRow, type ActivityRow } from '@/components/SuperConsole'
 import { DEFAULT_CURRENCY } from '@/lib/constants'
-import type { Tenant } from '@/payload-types'
+import type { Tenant, AuditLog, User } from '@/payload-types'
 
 export default async function SuperPage() {
   await requireSuperAdmin()
@@ -36,9 +36,25 @@ export default async function SuperPage() {
     }),
   )
 
+  // Platform-wide audit peek — the latest sensitive actions across every clinic.
+  const activityRes = await payload.find({
+    collection: 'auditLogs',
+    sort: '-createdAt',
+    limit: 12,
+    depth: 1,
+    overrideAccess: true,
+  })
+  const activity: ActivityRow[] = (activityRes.docs as AuditLog[]).map((a) => ({
+    id: String(a.id),
+    when: a.createdAt,
+    clinic: (a.tenant as Tenant)?.name ?? '—',
+    who: (a.user as User)?.name ?? '—',
+    summary: a.summary,
+  }))
+
   return (
     <main className="min-h-screen bg-canvas">
-      <SuperConsole tenants={rows} />
+      <SuperConsole tenants={rows} activity={activity} />
     </main>
   )
 }
