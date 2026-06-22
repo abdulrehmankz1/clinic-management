@@ -18,6 +18,7 @@ import {
   IconReceipt,
 } from '@/components/icons'
 import { BarChart } from '@/components/BarChart'
+import { RevenueChart } from '@/components/RevenueChart'
 import { DEFAULT_TIMEZONE } from '@/lib/constants'
 import type { Patient, User } from '@/payload-types'
 
@@ -203,6 +204,17 @@ export default async function DashboardHome() {
               </ul>
             </section>
           )}
+
+          {/* Revenue per day (owner only) */}
+          <section className="card-flat flex flex-col p-5 sm:p-6">
+            <div className="mb-5 flex items-baseline justify-between gap-3">
+              <h2 className="font-display text-lg font-semibold">Revenue</h2>
+              <span className="text-xs text-faint">Last 14 days</span>
+            </div>
+            <div className="my-auto">
+              <RevenueChart data={revenue.series} currency={revenue.currency} />
+            </div>
+          </section>
         </>
       )}
 

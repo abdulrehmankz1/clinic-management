@@ -7,8 +7,10 @@
 A multi-tenant **clinic management** system built with **Payload CMS 3**, **Next.js 16**
 and **MongoDB**. Many clinics share one deployment, but each clinic sees only its own
 data — built around one non-negotiable rule: **a clinic can never see or touch another
-clinic's data.** v1 covers the multi-tenant core: staff & roles, patients, appointments
-with a double-booking guard, walk-in tokens and a dashboard.
+clinic's data.** v1 ships the multi-tenant core (staff & roles, patients, appointments
+with a double-booking guard, walk-in tokens, dashboard); **v2 closes the clinical loop** —
+visits & prescriptions, billing with payments, printable prescription & receipt, a merged
+patient timeline and owner revenue reporting.
 
 > ⭐ **Like this project?** Give it a star and feel free to fork it — it really helps and
 > keeps the project going!
@@ -67,6 +69,33 @@ multi-clinic tool a receptionist can learn in half an hour.
 - **UI** — teal "clinical calm" design system on Tailwind v4 + shadcn/ui; dark sidebar app
   chrome; landing page with one-click demo logins; spinner feedback on every pending action.
 
+## 🩺 Features (v2 — the clinical loop)
+
+The loop **appointment → consultation → prescription → invoice → payment**, end to end.
+
+- **Visits & prescriptions** — a doctor records a visit from the day view (symptoms,
+  diagnosis, vitals, free-text prescription rows, follow-up). One appointment = one visit
+  (unique-index enforced), and recording it auto-completes the appointment. Patient/doctor
+  are denormalised from the appointment so timeline queries stay simple.
+- **Billing** — invoices with line items (consultation fee pre-filled from the doctor's
+  profile, editable), payments with method & date, and **derived** totals: `totalAmount`,
+  `amountPaid`, `balanceDue` and `paymentStatus` (`unpaid → partial → paid`) are always
+  computed in a hook — client-sent values are ignored. Overpayment is rejected, line items
+  lock after the first payment, and only an **owner** can void (with a reason); voided
+  invoices are frozen and excluded from revenue.
+- **Currency snapshot** — each invoice stores the clinic's currency at create time, so a
+  later settings change never rewrites historical amounts.
+- **Printable documents** — dedicated, tenant-scoped print routes for an **A5 prescription**
+  (clinic letterhead from the tenant profile) and a **receipt**, driven purely by
+  `@media print` CSS and `window.print()` — no PDF library.
+- **Patient timeline** — a merged, chronological feed (visits, invoices, and only
+  cancelled/no-show appointments — completed ones surface through their visit), with
+  Appointments and Invoices as sibling tabs. Each source is a DB-side query, never load-all.
+- **Owner revenue dashboard** — revenue today / this month (payments-based, voided excluded),
+  a 14-day revenue chart, and an outstanding-balances list (top unpaid/partial invoices).
+- **Clinic settings edit** — the owner edits the clinic profile, hours, slot length, currency
+  and timezone (field-level access: `slug`/`status` stay super-admin only).
+
 ## 🔐 Multi-tenancy design
 
 The tenant wall lives in **one place** — access-control functions (`src/access/`) that
@@ -114,7 +143,7 @@ the launch market, not a limitation.
 pnpm install
 cp .env.example .env          # then fill PAYLOAD_SECRET
 docker compose up -d          # MongoDB as a single-node replica set (rs0)
-pnpm seed                     # 3 demo clinics, staff, patients, appointments
+pnpm seed                     # 3 demo clinics, staff, patients, appointments, visits, invoices & payments
 pnpm dev                      # http://localhost:3000
 ```
 
@@ -137,7 +166,7 @@ Log in as City Care, then as Shifa — the data is completely different. That's 
 ## ✅ Tests
 
 ```bash
-pnpm test                     # 34 integration tests: isolation, booking guard, availability, walk-in tokens
+pnpm test                     # 51 integration tests: isolation, booking guard, availability, walk-in tokens, billing & visits
 ```
 
 > Heads-up: the test suite currently shares the dev database and wipes it — run
@@ -148,22 +177,24 @@ pnpm test                     # 34 integration tests: isolation, booking guard, 
 ```
 src/
   access/         # the tenant wall — isSuperAdmin, tenantScoped, field-level rules
-  app/(frontend)/ # landing, login, dashboard/* (appointments, patients, staff, settings), super
+  app/(frontend)/ # landing, login, dashboard/* (appointments, patients, visits, invoices, staff, settings), print/*, super
   app/(payload)/  # admin panel & REST/GraphQL API (super admin only)
-  collections/    # Tenants, Users, Patients, Appointments
-  components/     # DayRail (List + Timeline), BookingForm, StaffManager, SuperConsole, Sidebar, ui/
+  collections/    # Tenants, Users, Patients, Appointments, Visits, Invoices
+  components/     # DayRail, BookingForm, StaffManager, SuperConsole, BarChart, RevenueChart, Sidebar, ui/
   hooks/          # forceTenant (set-it-don't-trust-it)
-  lib/            # booking.ts, availability.ts, reports.ts, format.ts, constants.ts
+  lib/            # booking.ts, availability.ts, reports.ts, timeline.ts, format.ts, constants.ts
   seed.ts
   payload.config.ts
 public/images/    # landing/login photography (Unsplash) + product shot
-tests/int/        # isolation, booking, overlap, availability, walk-in suites
+tests/int/        # isolation, booking, overlap, availability, walk-in, billing, reports suites
 ```
 
 ## 🗺️ Roadmap
 
-v1 (this) is the multi-tenant foundation. Later versions (clinical visits & prescriptions,
-billing, self-serve signup) are planned but intentionally out of scope here.
+- **v1 — Multi-tenant foundation** ✅ — tenancy, roles, patients, appointments, dashboard.
+- **v2 — The clinical loop** ✅ — visits & prescriptions, billing & payments, printable
+  prescription/receipt, patient timeline, owner revenue reporting, settings edit.
+- **v3 — SaaS mechanics** (planned) — self-serve signup, plans & limits, reminders, audit log.
 
 ## 🤝 Contributing
 

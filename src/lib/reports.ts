@@ -151,6 +151,7 @@ export type RevenueData = {
   revenueMonth: number
   outstandingTotal: number
   outstanding: OutstandingRow[]
+  series: { label: string; amount: number }[]
   currency: string
 }
 
@@ -171,6 +172,10 @@ export async function getRevenueData(
   const tomorrow = startOfDayInTz(tz, 1).getTime()
   const monthStart = startOfMonthInTz(tz).getTime()
 
+  // 14-day revenue buckets (ascending day boundaries) — one bucket per day in tz.
+  const dayStarts = Array.from({ length: 14 }, (_, i) => startOfDayInTz(tz, -(13 - i)).getTime())
+  const seriesAmounts = new Array(14).fill(0) as number[]
+
   const res = await payload.find({
     collection: 'invoices',
     where: { tenant: { equals: tenantID }, voided: { not_equals: true } },
@@ -189,9 +194,20 @@ export async function getRevenueData(
       const amt = Number(p.amount ?? 0)
       if (t >= todayStart && t < tomorrow) revenueToday += amt
       if (t >= monthStart) revenueMonth += amt
+      // Drop into its day bucket (only if within the 14-day window).
+      if (t >= dayStarts[0] && t < tomorrow) {
+        let k = 13
+        while (k > 0 && t < dayStarts[k]) k--
+        seriesAmounts[k] += amt
+      }
     }
     outstandingTotal += inv.balanceDue ?? 0
   }
+
+  const series = dayStarts.map((ms, i) => ({
+    label: new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: tz }),
+    amount: Math.round(seriesAmounts[i]),
+  }))
 
   const outstanding: OutstandingRow[] = invoices
     .filter((inv) => (inv.balanceDue ?? 0) > 0)
@@ -210,6 +226,7 @@ export async function getRevenueData(
     revenueMonth: Math.round(revenueMonth),
     outstandingTotal: Math.round(outstandingTotal),
     outstanding,
+    series,
     currency,
   }
 }
