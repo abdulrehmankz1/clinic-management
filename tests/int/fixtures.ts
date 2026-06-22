@@ -42,7 +42,10 @@ export async function seedFixture(payload: Payload) {
   const makeClinic = async (key: string, name: string) => {
     const tenant = await payload.create({
       collection: 'tenants',
-      data: { name, phone: '03001234567', city: 'Testville', status: 'active' } as never,
+      // Default the shared fixture to the unlimited plan so unrelated suites (which
+      // add several doctors/patients) aren't constrained; the plan-limit suite sets
+      // the plan it needs explicitly.
+      data: { name, phone: '03001234567', city: 'Testville', status: 'active', plan: 'plus' } as never,
       overrideAccess: true,
     })
     const owner = await payload.create({

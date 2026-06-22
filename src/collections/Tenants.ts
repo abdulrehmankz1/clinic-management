@@ -9,6 +9,7 @@ import {
   DEFAULT_OPEN_TIME,
   DEFAULT_CLOSE_TIME,
 } from '@/lib/constants'
+import { PLANS, planLabel } from '@/lib/plans'
 
 const slugify = (value: string): string =>
   value
@@ -82,6 +83,43 @@ export const Tenants: CollectionConfig = {
         { label: 'Active', value: 'active' },
         { label: 'Suspended', value: 'suspended' },
       ],
+    },
+    {
+      name: 'plan',
+      type: 'select',
+      required: true,
+      defaultValue: 'free',
+      access: { update: superAdminField }, // only superAdmin moves a tenant between plans
+      options: PLANS.map((p) => ({ label: planLabel(p), value: p })),
+      admin: { description: 'Subscription tier; limits enforced in code (src/lib/plans.ts).' },
+    },
+    {
+      // Owner's pending "Request upgrade" (v3 spec §5). Cleared by superAdmin on
+      // approve/reject. No real billing — the enforcement & workflow are the product.
+      name: 'upgradeRequest',
+      type: 'group',
+      label: 'Upgrade request',
+      fields: [
+        {
+          name: 'requestedPlan',
+          type: 'select',
+          options: PLANS.map((p) => ({ label: planLabel(p), value: p })),
+        },
+        { name: 'requestedAt', type: 'date' },
+        { name: 'note', type: 'textarea', label: 'Owner note' },
+      ],
+    },
+    {
+      name: 'onboardingSource',
+      type: 'select',
+      required: true,
+      defaultValue: 'manual',
+      access: { update: superAdminField },
+      options: [
+        { label: 'Self-serve', value: 'self-serve' },
+        { label: 'Manual', value: 'manual' },
+      ],
+      admin: { description: 'How this clinic was created — for analytics.' },
     },
     {
       name: 'settings',

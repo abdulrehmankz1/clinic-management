@@ -141,6 +141,19 @@ export interface Tenant {
   city?: string | null;
   country?: string | null;
   status: 'active' | 'suspended';
+  /**
+   * Subscription tier; limits enforced in code (src/lib/plans.ts).
+   */
+  plan: 'free' | 'clinic' | 'plus';
+  upgradeRequest?: {
+    requestedPlan?: ('free' | 'clinic' | 'plus') | null;
+    requestedAt?: string | null;
+    note?: string | null;
+  };
+  /**
+   * How this clinic was created — for analytics.
+   */
+  onboardingSource: 'self-serve' | 'manual';
   settings: {
     appointmentDurationMins: number;
     openTime: string;
@@ -439,6 +452,15 @@ export interface TenantsSelect<T extends boolean = true> {
   city?: T;
   country?: T;
   status?: T;
+  plan?: T;
+  upgradeRequest?:
+    | T
+    | {
+        requestedPlan?: T;
+        requestedAt?: T;
+        note?: T;
+      };
+  onboardingSource?: T;
   settings?:
     | T
     | {

@@ -10,6 +10,7 @@
 import 'dotenv/config'
 import { getPayload, type Payload } from 'payload'
 import config from './payload.config'
+import type { Plan } from './lib/plans'
 
 const PASSWORD = 'password123'
 
@@ -64,6 +65,7 @@ type ClinicSpec = {
   phone: string
   currency: string
   timezone: string
+  plan: Plan
   doctors: DoctorSpec[]
 }
 
@@ -76,6 +78,7 @@ const CLINICS: ClinicSpec[] = [
     phone: '+92512345678',
     currency: 'PKR',
     timezone: 'Asia/Karachi',
+    plan: 'clinic', // 5 doctors — a paying clinic sitting at its plan ceiling
     doctors: [
       // Different availability patterns, mirroring a real clinic:
       { name: 'Dr. Hira Saleem', specialty: 'General Physician', fee: 1500, type: 'regular', days: ['sun','mon','tue','wed','thu','fri','sat'], from: '11:00', to: '13:00' },
@@ -93,6 +96,7 @@ const CLINICS: ClinicSpec[] = [
     phone: '+92423456789',
     currency: 'PKR',
     timezone: 'Asia/Karachi',
+    plan: 'free', // single doctor on the free tier
     doctors: [{ name: 'Dr. Nadia Hashmi', specialty: 'Family Medicine', fee: 1200 }],
   },
   {
@@ -104,6 +108,7 @@ const CLINICS: ClinicSpec[] = [
     phone: '+97143456789',
     currency: 'AED',
     timezone: 'Asia/Dubai',
+    plan: 'free', // single doctor on the free tier
     doctors: [{ name: 'Dr. Omar Farid', specialty: 'General Physician', fee: 150 }],
   },
 ]
@@ -156,6 +161,8 @@ export async function seed(payload: Payload) {
         city: clinic.city,
         country: clinic.country,
         status: 'active',
+        plan: clinic.plan,
+        onboardingSource: 'manual',
         settings: {
           appointmentDurationMins: 15,
           openTime: '09:00',

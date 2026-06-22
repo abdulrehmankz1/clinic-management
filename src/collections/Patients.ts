@@ -2,6 +2,7 @@ import type { CollectionConfig } from 'payload'
 import { APIError } from 'payload'
 import { superAdminOnly, tenantScoped, getTenantID } from '@/access'
 import { forceTenant } from '@/hooks/tenant'
+import { enforcePlanLimit } from '@/hooks/planLimit'
 import { GENDERS, BLOOD_GROUPS, ERROR_CODES } from '@/lib/constants'
 
 /** Strip spaces/dashes; keep leading + and digits. Market-agnostic. */
@@ -38,6 +39,9 @@ export const Patients: CollectionConfig = {
     ],
     beforeChange: [
       forceTenant,
+      // Plan cap: a new patient beyond the tenant's plan limit is rejected (runs after
+      // forceTenant so the tenant is resolved, before we assign an MRN we'd waste).
+      enforcePlanLimit('patients'),
       // Per-clinic human-friendly MRN: P-0001, P-0002, …
       async ({ data, req, operation }) => {
         if (operation !== 'create') return data

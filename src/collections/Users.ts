@@ -10,6 +10,7 @@ import {
   usersUpdateAccess,
 } from '@/access'
 import { ROLES, ERROR_CODES, AVAILABILITY_TYPES, WEEKDAYS, ALL_DAYS } from '@/lib/constants'
+import { enforcePlanLimit } from '@/hooks/planLimit'
 
 export const Users: CollectionConfig = {
   slug: 'users',
@@ -97,6 +98,8 @@ export const Users: CollectionConfig = {
         }
         return data
       },
+      // Plan cap: a new active doctor beyond the tenant's plan limit is rejected.
+      enforcePlanLimit('doctors'),
     ],
   },
   fields: [

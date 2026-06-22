@@ -7,6 +7,7 @@ const MESSAGES: Record<string, string> = {
   [ERROR_CODES.SLOT_TAKEN]: 'That slot was just taken. Pick another time.',
   [ERROR_CODES.INVALID_TRANSITION]: "That status change isn't allowed.",
   [ERROR_CODES.TENANT_SUSPENDED]: "This clinic's account is suspended. Contact support.",
+  [ERROR_CODES.PLAN_LIMIT]: 'Your plan limit has been reached. Request an upgrade to add more.',
   [ERROR_CODES.USER_INACTIVE]: 'Your account has been deactivated. Contact your clinic owner.',
   [ERROR_CODES.FORBIDDEN]: "You don't have permission to do that.",
   [ERROR_CODES.VALIDATION]: 'Please check the form and try again.',
