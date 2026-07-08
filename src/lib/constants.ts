@@ -130,6 +130,9 @@ export const AUDIT_ACTIONS = [
   { value: 'settings.updated', label: 'Settings updated' },
   { value: 'tenant.suspended', label: 'Clinic suspended' },
   { value: 'tenant.reactivated', label: 'Clinic reactivated' },
+  { value: 'plan.upgrade-requested', label: 'Upgrade requested' },
+  { value: 'plan.upgrade-rejected', label: 'Upgrade declined' },
+  { value: 'plan.changed', label: 'Plan changed' },
 ] as const
 export type AuditAction = (typeof AUDIT_ACTIONS)[number]['value']
 

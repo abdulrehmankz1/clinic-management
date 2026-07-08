@@ -8,8 +8,9 @@ import { TablePager } from './TablePager'
 import { IconPlus, IconBuilding, IconLogout } from './icons'
 
 const TENANTS_PAGE_SIZE = 10
-import { createClinic, setClinicStatus } from '@/app/(frontend)/super/actions'
+import { createClinic, setClinicStatus, resolveUpgradeRequest } from '@/app/(frontend)/super/actions'
 import { logoutAction } from '@/app/(frontend)/login/actions'
+import { planLabel, asPlan } from '@/lib/plans'
 
 export type TenantRow = {
   id: string
@@ -17,6 +18,8 @@ export type TenantRow = {
   city?: string | null
   currency: string
   status: string
+  plan: string
+  upgradeRequest?: { plan: string; requestedAt: string | null; note: string | null } | null
   doctors: number
   patients: number
   appointments: number
@@ -46,6 +49,8 @@ export function SuperConsole({ tenants, activity = [] }: { tenants: TenantRow[];
   // Self-serve signups land as `pending` and queue here for approval (spec §3.2).
   // Most recent first; createdAt already sorts that way upstream.
   const pendingSignups = tenants.filter((t) => t.status === 'pending')
+  // Owner "Request upgrade" submissions queue here for a decision (spec §5).
+  const upgradeRequests = tenants.filter((t) => t.upgradeRequest)
   const [form, setForm] = useState({
     name: '', phone: '', city: '', currency: 'PKR', timezone: 'Asia/Karachi',
     ownerName: '', ownerEmail: '', ownerPassword: '',
@@ -77,6 +82,16 @@ export function SuperConsole({ tenants, activity = [] }: { tenants: TenantRow[];
     setError(null)
     start(async () => {
       const res = await setClinicStatus(id, status)
+      if (res.ok) router.refresh()
+      else setError(res.message)
+    })
+  }
+
+  // Approve applies the requested plan; reject just clears the request.
+  const resolveUpgrade = (id: string, decision: 'approve' | 'reject') => {
+    setError(null)
+    start(async () => {
+      const res = await resolveUpgradeRequest(id, decision)
       if (res.ok) router.refresh()
       else setError(res.message)
     })
@@ -185,11 +200,59 @@ export function SuperConsole({ tenants, activity = [] }: { tenants: TenantRow[];
         </Card>
       )}
 
+      {upgradeRequests.length > 0 && (
+        <Card className="mb-5 overflow-hidden">
+          <div className="flex items-center justify-between border-b border-border px-6 py-4">
+            <h2 className="text-sm font-semibold">Upgrade requests</h2>
+            <span className="text-xs text-muted-foreground">{upgradeRequests.length} awaiting a decision</span>
+          </div>
+          <ul className="divide-y divide-border">
+            {upgradeRequests.map((t) => (
+              <li key={t.id} className="flex items-center gap-3 px-6 py-3">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary">
+                  <IconBuilding size={15} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13px] font-medium">
+                    {t.name}
+                    <span className="ms-2 font-normal text-muted-foreground">
+                      {planLabel(asPlan(t.plan))} → {planLabel(asPlan(t.upgradeRequest!.plan))}
+                    </span>
+                  </div>
+                  <div className="truncate text-xs text-faint">
+                    {t.upgradeRequest!.requestedAt &&
+                      new Date(t.upgradeRequest!.requestedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                    {t.upgradeRequest!.note && ` · "${t.upgradeRequest!.note}"`}
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    className="text-xs font-medium text-faint transition-colors hover:text-red disabled:opacity-50"
+                    disabled={pending}
+                    onClick={() => resolveUpgrade(t.id, 'reject')}
+                  >
+                    Decline
+                  </button>
+                  <button
+                    className={`${btnPrimary} h-8 px-3 text-xs`}
+                    disabled={pending}
+                    onClick={() => resolveUpgrade(t.id, 'approve')}
+                  >
+                    Approve
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
       <Card className="overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-canvas/50">
               <Th>Clinic</Th>
+              <Th>Plan</Th>
               <Th>Currency</Th>
               <Th>Status</Th>
               <Th className="text-end">Doctors</Th>
@@ -212,6 +275,7 @@ export function SuperConsole({ tenants, activity = [] }: { tenants: TenantRow[];
                     </div>
                   </div>
                 </Td>
+                <Td className="text-muted-foreground">{planLabel(asPlan(t.plan))}</Td>
                 <Td className="text-muted-foreground">{t.currency}</Td>
                 <Td>
                   <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${

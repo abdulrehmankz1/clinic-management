@@ -28,4 +28,5 @@ export {
   Printer as IconPrinter,
   Receipt as IconReceipt,
   Wallet as IconWallet,
+  CreditCard as IconCreditCard,
 } from 'lucide-react'

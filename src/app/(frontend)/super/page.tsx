@@ -27,6 +27,14 @@ export default async function SuperPage() {
         city: t.city,
         currency: t.settings?.currency || DEFAULT_CURRENCY,
         status: t.status,
+        plan: t.plan,
+        upgradeRequest: t.upgradeRequest?.requestedPlan
+          ? {
+              plan: t.upgradeRequest.requestedPlan,
+              requestedAt: t.upgradeRequest.requestedAt ?? null,
+              note: t.upgradeRequest.note ?? null,
+            }
+          : null,
         doctors: doctors.totalDocs,
         patients: patients.totalDocs,
         appointments: appointments.totalDocs,
