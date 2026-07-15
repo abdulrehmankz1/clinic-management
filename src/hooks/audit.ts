@@ -5,6 +5,7 @@
 
 import type { CollectionAfterChangeHook, PayloadRequest } from 'payload'
 import { logAudit } from '@/lib/audit'
+import { asPlan, planLabel } from '@/lib/plans'
 
 const relID = (value: unknown): string | null => {
   if (value == null) return null
@@ -122,6 +123,35 @@ export const auditTenants: CollectionAfterChangeHook = async ({ doc, previousDoc
   // Settings edit (owner-facing). Compare the serialised settings group.
   if (JSON.stringify(previousDoc.settings ?? {}) !== JSON.stringify(doc.settings ?? {})) {
     await logAudit(req, { ...base, action: 'settings.updated', summary: `Updated clinic settings for ${doc.name}` })
+  }
+
+  // Plan & upgrade-request workflow (spec §5). Approve shows up as plan.changed
+  // (the clear is implied); a clear WITHOUT a plan change is a rejection.
+  if (previousDoc.plan !== doc.plan) {
+    await logAudit(req, {
+      ...base,
+      action: 'plan.changed',
+      summary: `Moved ${doc.name} to the ${planLabel(asPlan(doc.plan))} plan`,
+      meta: { from: previousDoc.plan, to: doc.plan },
+    })
+  }
+
+  const prevRequested = previousDoc.upgradeRequest?.requestedPlan ?? null
+  const nowRequested = doc.upgradeRequest?.requestedPlan ?? null
+  if (!prevRequested && nowRequested) {
+    await logAudit(req, {
+      ...base,
+      action: 'plan.upgrade-requested',
+      summary: `Requested an upgrade to the ${planLabel(asPlan(nowRequested))} plan`,
+      meta: { requestedPlan: nowRequested },
+    })
+  } else if (prevRequested && !nowRequested && previousDoc.plan === doc.plan) {
+    await logAudit(req, {
+      ...base,
+      action: 'plan.upgrade-rejected',
+      summary: `Declined ${doc.name}'s upgrade to the ${planLabel(asPlan(prevRequested))} plan`,
+      meta: { requestedPlan: prevRequested },
+    })
   }
   return doc
 }

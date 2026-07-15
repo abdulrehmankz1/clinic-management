@@ -10,7 +10,9 @@ data — built around one non-negotiable rule: **a clinic can never see or touch
 clinic's data.** v1 ships the multi-tenant core (staff & roles, patients, appointments
 with a double-booking guard, walk-in tokens, dashboard); **v2 closes the clinical loop** —
 visits & prescriptions, billing with payments, printable prescription & receipt, a merged
-patient timeline and owner revenue reporting.
+patient timeline and owner revenue reporting; **v3 turns it into a real SaaS** — self-serve
+clinic signup, plans & usage limits with an upgrade workflow, timezone-aware reminders,
+and an append-only audit log.
 
 > ⭐ **Like this project?** Give it a star and feel free to fork it — it really helps and
 > keeps the project going!
@@ -37,6 +39,16 @@ clinic settings.
   record (MRN auto-assigned).
 - **Staff** — adding a new doctor with specialty, fee and weekly availability.
 - **Settings** — clinic profile, working hours, currency & timezone.
+
+## 🎬 Demo — v3 reminders
+
+The v3 reminder flow: a per-appointment **WhatsApp reminder** sent straight from the day
+view (a `wa.me` deep link with the message prefilled — zero API cost), and the
+**daily digest email** a clinic owner receives at 7 am *their clinic's* local time.
+
+<img src="demo-videos/reminders-flow.gif" alt="v3 reminders — WhatsApp deep link & daily digest email" width="720">
+
+<sub>▶ Full quality: <a href="demo-videos/reminders-flow.mp4">watch the MP4</a></sub>
 
 ## The problem
 
@@ -96,6 +108,47 @@ The loop **appointment → consultation → prescription → invoice → payment
 - **Clinic settings edit** — the owner edits the clinic profile, hours, slot length, currency
   and timezone (field-level access: `slug`/`status` stay super-admin only).
 
+## 🏢 Features (v3 — real SaaS mechanics)
+
+Matab stops being an attended demo and starts behaving like a product: clinics sign
+themselves up, plans limit usage, the system communicates, and every sensitive action
+leaves a record.
+
+- **Self-serve signup** — a public `/signup` creates the clinic + owner + sample data
+  **atomically in one transaction** (any failure rolls everything back). Slugs are
+  auto-generated with `-2`/`-3` suffixes on collision; a honeypot field, a minimum-fill-time
+  check and per-IP rate limiting (3/hour) keep bots out. New clinics queue as **pending**
+  until the super admin approves them, and the first login gets a 3-step welcome checklist
+  derived from live counts — no extra state stored.
+- **Plans & limits** — `free` (1 doctor, 50 patients) / `clinic` (5 doctors) / `plus`
+  (unlimited), defined in code (`src/lib/plans.ts`) and enforced in `beforeChange` hooks
+  with a clear `PLAN_LIMIT` error. **Downgrade-safe:** if a plan shrinks below current
+  usage, existing data stays readable and editable — only *new* creates are blocked.
+  Deactivated doctors don't count toward the limit.
+- **Upgrade workflow (billing intentionally stubbed)** — an owner-facing `/dashboard/plan`
+  page with usage bars and plan cards; "Request upgrade" with an optional note; a
+  super-admin approve/decline queue on `/super`. The enforcement and approval workflow are
+  real — the payment gateway is a swappable last mile.
+- **Audit log** — an append-only `auditLogs` collection written **only from server-side
+  hooks**: REST create/update/delete is denied for everyone, super admin included.
+  Owners get a `/dashboard/activity` page with action filters; the super console gets a
+  per-tenant activity peek. An audit-write failure never breaks the business operation.
+- **Reminders** — a **timezone-aware daily digest email** (Resend) sent from an hourly
+  Vercel cron guarded by `CRON_SECRET`, plus a per-appointment **WhatsApp reminder**
+  button — a `wa.me` deep link with the message prefilled. Zero API cost, works anywhere
+  WhatsApp does.
+- **Tenant suspension UX** — suspended clinics are blocked at login, and already-active
+  sessions hit a full-screen stop state (no data rendered). Suspend/reactivate are audited.
+
+## ⏰ One cron, every timezone
+
+Each clinic sets its own timezone, so "email the owner at 7 am" can't be a single
+scheduled job. Instead the digest cron runs **hourly**, and each run sends only to
+clinics whose local time is currently 7 — a clinic in Karachi and one in London both get
+their digest at their own 7 am from the same cron. One clinic's email failure is logged
+and skipped, never crashing the loop; without `RESEND_API_KEY` the whole feature quietly
+switches off (graceful degradation).
+
 ## 🔐 Multi-tenancy design
 
 The tenant wall lives in **one place** — access-control functions (`src/access/`) that
@@ -151,6 +204,10 @@ pnpm dev                      # http://localhost:3000
 > replica set. `docker compose up -d` starts a single-node `rs0` and initializes it
 > automatically. A standalone mongo silently makes transactions a no-op.
 
+> **Email is optional.** Leave `RESEND_API_KEY` empty and the digest/notification emails
+> quietly turn off — everything else works. `CRON_SECRET` guards `/api/cron/*` in
+> production (the Vercel cron schedule lives in `vercel.json`).
+
 ### Demo logins (password: `password123`)
 
 | Role | Email |
@@ -163,10 +220,16 @@ pnpm dev                      # http://localhost:3000
 
 Log in as City Care, then as Shifa — the data is completely different. That's the tenant wall.
 
+Or skip the table entirely: hit **`/signup`** and onboard your own clinic — it lands as
+*pending* in the super-admin console, gets approved, and you're running a clinic with
+sample data in under a minute.
+
 ## ✅ Tests
 
 ```bash
-pnpm test                     # 51 integration tests: isolation, booking guard, availability, walk-in tokens, billing & visits
+pnpm test                     # 80 integration tests: isolation, booking guard, availability, walk-in tokens,
+                              # billing & visits, signup transaction, plan limits, upgrade workflow,
+                              # audit immutability & the digest cron (auth + timezone gating)
 ```
 
 > Heads-up: the test suite currently shares the dev database and wipes it — run
@@ -176,17 +239,21 @@ pnpm test                     # 51 integration tests: isolation, booking guard, 
 
 ```
 src/
-  access/         # the tenant wall — isSuperAdmin, tenantScoped, field-level rules
-  app/(frontend)/ # landing, login, dashboard/* (appointments, patients, visits, invoices, staff, settings), print/*, super
+  access/         # the tenant wall — isSuperAdmin, tenantScoped, field-level rules, denyAll (audit)
+  app/(frontend)/ # landing, login, signup, dashboard/* (appointments, patients, visits, invoices,
+                  #   staff, settings, plan, activity), print/*, super
   app/(payload)/  # admin panel & REST/GraphQL API (super admin only)
-  collections/    # Tenants, Users, Patients, Appointments, Visits, Invoices
-  components/     # DayRail, BookingForm, StaffManager, SuperConsole, BarChart, RevenueChart, Sidebar, ui/
-  hooks/          # forceTenant (set-it-don't-trust-it)
-  lib/            # booking.ts, availability.ts, reports.ts, timeline.ts, format.ts, constants.ts
+  app/api/cron/   # daily-digest route (CRON_SECRET-guarded, hourly via vercel.json)
+  collections/    # Tenants, Users, Patients, Appointments, Visits, Invoices, AuditLogs
+  components/     # DayRail, BookingForm, StaffManager, SuperConsole, PlanPanel, BarChart, RevenueChart, Sidebar, ui/
+  hooks/          # forceTenant (set-it-don't-trust-it), planLimit, audit wiring
+  lib/            # booking.ts, availability.ts, reports.ts, timeline.ts, plans.ts, signup.ts,
+                  #   audit.ts, digest.ts, email.ts, whatsapp.ts, rateLimit.ts, format.ts, constants.ts
   seed.ts
   payload.config.ts
 public/images/    # landing/login photography (Unsplash) + product shot
-tests/int/        # isolation, booking, overlap, availability, walk-in, billing, reports suites
+tests/int/        # isolation, booking, overlap, availability, walk-in, billing, reports,
+                  #   signup, plans, upgrade, audit & digest suites
 ```
 
 ## 🗺️ Roadmap
@@ -194,7 +261,9 @@ tests/int/        # isolation, booking, overlap, availability, walk-in, billing,
 - **v1 — Multi-tenant foundation** ✅ — tenancy, roles, patients, appointments, dashboard.
 - **v2 — The clinical loop** ✅ — visits & prescriptions, billing & payments, printable
   prescription/receipt, patient timeline, owner revenue reporting, settings edit.
-- **v3 — SaaS mechanics** (planned) — self-serve signup, plans & limits, reminders, audit log.
+- **v3 — Real SaaS mechanics** ✅ — self-serve signup with approval queue, plans & limits
+  with an upgrade workflow, timezone-aware reminder digests + WhatsApp deep links,
+  append-only audit log, suspension UX.
 
 ## 🤝 Contributing
 

@@ -28,4 +28,6 @@ export {
   Printer as IconPrinter,
   Receipt as IconReceipt,
   Wallet as IconWallet,
+  CreditCard as IconCreditCard,
+  MessageCircle as IconWhatsApp,
 } from 'lucide-react'

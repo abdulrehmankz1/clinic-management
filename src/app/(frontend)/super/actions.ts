@@ -81,6 +81,46 @@ export async function createClinic(input: ClinicInput): Promise<ActionResult<{ i
   }
 }
 
+/**
+ * Resolve a tenant's pending upgrade request (v3 spec §5). Approve applies the
+ * requested plan and clears the request; reject just clears it. Audit entries
+ * (plan.changed / plan.upgrade-rejected) are written by the auditTenants hook.
+ */
+export async function resolveUpgradeRequest(
+  id: string,
+  decision: 'approve' | 'reject',
+): Promise<ActionResult<null>> {
+  const ctx = await superCtx()
+  if (!ctx) return { ok: false, code: 'FORBIDDEN', message: "You don't have permission to do that." }
+  try {
+    const tenant = await ctx.payload.findByID({
+      collection: 'tenants',
+      id,
+      depth: 0,
+      overrideAccess: true,
+    })
+    const requested = tenant.upgradeRequest?.requestedPlan
+    if (!requested) {
+      return { ok: false, code: 'VALIDATION', message: 'This clinic has no pending upgrade request.' }
+    }
+
+    await ctx.payload.update({
+      collection: 'tenants',
+      id,
+      overrideAccess: false,
+      user: ctx.user,
+      data: {
+        ...(decision === 'approve' ? { plan: requested } : {}),
+        upgradeRequest: { requestedPlan: null, requestedAt: null, note: null },
+      } as never,
+    })
+    revalidatePath('/super')
+    return { ok: true, data: null }
+  } catch (err) {
+    return { ok: false, ...toActionError(err) }
+  }
+}
+
 export async function setClinicStatus(
   id: string,
   status: 'active' | 'suspended',

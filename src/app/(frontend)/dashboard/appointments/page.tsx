@@ -7,6 +7,7 @@ import { btnPrimary, PageTitle } from '@/components/primitives'
 import { IconChevronLeft, IconChevronRight, IconPlus } from '@/components/icons'
 import { DayRail, type DoctorColumn } from '@/components/DayRail'
 import { hhmmToMinutes, windowOf, weekdayInTz, minutesInTz } from '@/lib/availability'
+import { waReminderLink } from '@/lib/whatsapp'
 import { DEFAULT_TIMEZONE, WEEKDAYS, type AppointmentStatus } from '@/lib/constants'
 import type { Appointment, Patient, User } from '@/payload-types'
 
@@ -66,6 +67,13 @@ export default async function AppointmentsPage({
   const viewedWeekday = weekdayInTz(dayStart, tz)
   const nowMinutes = isToday ? minutesFromMidnight(new Date(), tz) : null
 
+  const prettyDate = new Date(dayStart).toLocaleDateString('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    timeZone: tz,
+  })
+
   const columns: DoctorColumn[] = (doctorsRes.docs as User[]).map((doc) => {
     const type = (doc.availabilityType as string) || 'regular'
     let windowFrom: number | null = null
@@ -108,16 +116,18 @@ export default async function AppointmentsPage({
           isWalkIn: Boolean(a.isWalkIn),
           token: (a as { tokenNumber?: string }).tokenNumber,
           doctorName: doc.name,
+          waHref: waReminderLink({
+            phone: (a.patient as Patient)?.phone,
+            currency: tenant?.settings?.currency,
+            doctorName: doc.name,
+            clinicName: tenant?.name ?? 'the clinic',
+            dateLabel: prettyDate,
+            timeLabel: formatTime(a.start, tenant),
+          }),
         })),
     }
   })
 
-  const prettyDate = new Date(dayStart).toLocaleDateString('en-GB', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    timeZone: tz,
-  })
   const totalToday = apptsRes.docs.length
 
   return (

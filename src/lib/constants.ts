@@ -130,6 +130,9 @@ export const AUDIT_ACTIONS = [
   { value: 'settings.updated', label: 'Settings updated' },
   { value: 'tenant.suspended', label: 'Clinic suspended' },
   { value: 'tenant.reactivated', label: 'Clinic reactivated' },
+  { value: 'plan.upgrade-requested', label: 'Upgrade requested' },
+  { value: 'plan.upgrade-rejected', label: 'Upgrade declined' },
+  { value: 'plan.changed', label: 'Plan changed' },
 ] as const
 export type AuditAction = (typeof AUDIT_ACTIONS)[number]['value']
 
@@ -147,6 +150,8 @@ export const ERROR_CODES = {
   SIGNUP_EMAIL_TAKEN: 'SIGNUP_EMAIL_TAKEN',
   SIGNUP_RATE_LIMITED: 'SIGNUP_RATE_LIMITED',
   SIGNUP_FAILED: 'SIGNUP_FAILED',
+  // v3 — reminders (internal; never surfaced in the UI)
+  CRON_UNAUTHORIZED: 'CRON_UNAUTHORIZED',
   // v2 — clinical loop
   VISIT_EXISTS: 'VISIT_EXISTS',
   INVALID_APPOINTMENT_STATE: 'INVALID_APPOINTMENT_STATE',

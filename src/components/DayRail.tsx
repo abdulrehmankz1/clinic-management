@@ -13,7 +13,7 @@ import {
   Spinner,
 } from './primitives'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
-import { IconClock, IconStethoscope, IconCheck, IconCalendar } from './icons'
+import { IconClock, IconStethoscope, IconCheck, IconCalendar, IconWhatsApp } from './icons'
 import { STATUS_TRANSITIONS, type AppointmentStatus } from '@/lib/constants'
 import { updateAppointmentStatus } from '@/app/(frontend)/dashboard/appointments/actions'
 
@@ -28,6 +28,8 @@ export type Block = {
   isWalkIn: boolean
   token?: string | null
   doctorName?: string
+  /** Prefilled wa.me reminder link (v3 §6.2); null when the phone can't be dialled. */
+  waHref?: string | null
 }
 
 export type DoctorColumn = {
@@ -313,6 +315,19 @@ export function DayRail({
                       {selected.doctorName}
                     </span>
                   </div>
+                )}
+
+                {/* WhatsApp reminder (v3 §6.2) — only while the visit is still ahead. */}
+                {selected.waHref && (selected.status === 'scheduled' || selected.status === 'checked-in') && (
+                  <a
+                    href={selected.waHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`${btnGhost} mt-3 w-full`}
+                  >
+                    <IconWhatsApp size={15} className="text-primary" />
+                    WhatsApp reminder
+                  </a>
                 )}
 
                 {error && (

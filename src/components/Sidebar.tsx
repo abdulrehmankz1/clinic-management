@@ -10,6 +10,7 @@ import {
   IconSettings,
   IconLogout,
   IconClock,
+  IconCreditCard,
 } from './icons'
 import { logoutAction } from '@/app/(frontend)/login/actions'
 
@@ -46,6 +47,7 @@ export function Sidebar({
   if (role === 'owner') {
     adminItems.push({ href: '/dashboard/staff', label: 'Staff', icon: IconStaff })
     adminItems.push({ href: '/dashboard/activity', label: 'Activity', icon: IconClock })
+    adminItems.push({ href: '/dashboard/plan', label: 'Plan', icon: IconCreditCard })
     adminItems.push({ href: '/dashboard/settings', label: 'Settings', icon: IconSettings })
   }
 

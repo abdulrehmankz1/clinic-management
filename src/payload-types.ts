@@ -371,7 +371,10 @@ export interface AuditLog {
     | 'user.role-changed'
     | 'settings.updated'
     | 'tenant.suspended'
-    | 'tenant.reactivated';
+    | 'tenant.reactivated'
+    | 'plan.upgrade-requested'
+    | 'plan.upgrade-rejected'
+    | 'plan.changed';
   targetCollection: string;
   targetId: string;
   /**
