@@ -186,6 +186,9 @@ export interface User {
   tenant?: (string | null) | Tenant;
   phone?: string | null;
   active?: boolean | null;
+  emailVerified?: boolean | null;
+  verifyTokenHash?: string | null;
+  verifyTokenExp?: string | null;
   specialty?: string | null;
   /**
    * In the clinic currency. Used by billing (v2).
@@ -533,6 +536,9 @@ export interface UsersSelect<T extends boolean = true> {
   tenant?: T;
   phone?: T;
   active?: T;
+  emailVerified?: T;
+  verifyTokenHash?: T;
+  verifyTokenExp?: T;
   specialty?: T;
   consultationFee?: T;
   availabilityType?: T;

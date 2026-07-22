@@ -12,6 +12,8 @@ import {
   DEFAULT_OPEN_TIME,
   DEFAULT_CLOSE_TIME,
 } from './constants'
+import { emailEnabled } from './email'
+import { createVerificationToken } from './verification'
 
 export type SignupInput = {
   clinicName: string
@@ -25,10 +27,21 @@ export type SignupInput = {
   password: string
 }
 
+export type SignupOptions = {
+  /**
+   * Whether the owner must confirm their email before the clinic queues for
+   * approval (BACKLOG §1.1). Defaults to whether email can actually be sent —
+   * with no RESEND_API_KEY the step is skipped, or nobody could ever verify.
+   */
+  requireEmailVerification?: boolean
+}
+
 export type SignupResult = {
   tenantId: string
   ownerId: string
   slug: string
+  /** Present only when verification is required — the action emails this link out. */
+  verificationToken?: string
 }
 
 const slugify = (value: string): string =>
@@ -79,9 +92,15 @@ function validate(input: SignupInput): void {
  * checked *before* any write, so a duplicate email can never leave an orphan
  * tenant even when the Mongo deployment has no replica set (no real transaction).
  */
-export async function signupClinic(payload: Payload, input: SignupInput): Promise<SignupResult> {
+export async function signupClinic(
+  payload: Payload,
+  input: SignupInput,
+  opts: SignupOptions = {},
+): Promise<SignupResult> {
   validate(input)
 
+  const requireVerify = opts.requireEmailVerification ?? emailEnabled()
+  const verification = requireVerify ? createVerificationToken() : null
   const email = input.email.trim().toLowerCase()
 
   // Pre-check: a friendly, specific error and guaranteed atomicity on the most
@@ -144,6 +163,14 @@ export async function signupClinic(payload: Payload, input: SignupInput): Promis
         password: input.password,
         role: 'owner',
         tenant: tenant.id,
+        // Only the token's hash is stored; the raw token goes out by email once.
+        ...(verification
+          ? {
+              emailVerified: false,
+              verifyTokenHash: verification.hash,
+              verifyTokenExp: verification.expiresAt.toISOString(),
+            }
+          : {}),
       } as never,
     })
 
@@ -165,7 +192,7 @@ export async function signupClinic(payload: Payload, input: SignupInput): Promis
     payload.logger?.error?.({ err, msg: 'signup: sample data failed (non-fatal)' })
   }
 
-  return { tenantId, ownerId, slug }
+  return { tenantId, ownerId, slug, ...(verification ? { verificationToken: verification.token } : {}) }
 }
 
 // A brand-new clinic shouldn't open onto an empty screen (spec §3.1.e). We seed a

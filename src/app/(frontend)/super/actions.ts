@@ -138,6 +138,25 @@ export async function setClinicStatus(
       overrideAccess: true,
     })
 
+    // A signup can't be approved until the owner proved they own the email
+    // (BACKLOG §1.1) — the UI disables the button; this is the real gate.
+    if (before.status === 'pending' && status === 'active') {
+      const owners = await ctx.payload.find({
+        collection: 'users',
+        where: { tenant: { equals: id }, role: { equals: 'owner' } },
+        limit: 1,
+        depth: 0,
+        overrideAccess: true,
+      })
+      if (owners.docs[0]?.emailVerified === false) {
+        return {
+          ok: false,
+          code: 'VALIDATION',
+          message: "The owner hasn't verified their email yet — approval is on hold until they do.",
+        }
+      }
+    }
+
     await ctx.payload.update({
       collection: 'tenants',
       id,

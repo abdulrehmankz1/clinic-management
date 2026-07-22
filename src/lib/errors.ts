@@ -27,6 +27,10 @@ const MESSAGES: Record<string, string> = {
   // backlog — email hardening
   [ERROR_CODES.RESET_TOKEN_INVALID]:
     'This reset link is invalid or has expired. Request a new one.',
+  [ERROR_CODES.EMAIL_NOT_VERIFIED]:
+    'Verify your email first — check your inbox for the confirmation link.',
+  [ERROR_CODES.VERIFY_TOKEN_INVALID]:
+    'This verification link is invalid or has expired. Request a new one below.',
 }
 
 export type ActionResult<T = unknown> =

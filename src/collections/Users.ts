@@ -3,6 +3,7 @@ import { APIError } from 'payload'
 import {
   getTenantID,
   isSuperAdmin,
+  superAdminField,
   superAdminOnly,
   superAdminOrOwnerField,
   usersCreateAccess,
@@ -37,6 +38,14 @@ export const Users: CollectionConfig = {
             'Your account has been deactivated. Contact your clinic owner.',
             403,
             { code: ERROR_CODES.USER_INACTIVE },
+          )
+        }
+        // Self-serve owners confirm their email before anything else (BACKLOG §1.1).
+        if (user.emailVerified === false) {
+          throw new APIError(
+            'Verify your email first — check your inbox for the confirmation link.',
+            403,
+            { code: ERROR_CODES.EMAIL_NOT_VERIFIED },
           )
         }
         const tenantID = getTenantID(user)
@@ -148,6 +157,29 @@ export const Users: CollectionConfig = {
       defaultValue: true,
       label: 'Active',
       access: { update: superAdminOrOwnerField },
+    },
+    // Email verification (BACKLOG §1.1). Everyone defaults to verified — only a
+    // self-serve signup starts false (set by signupClinic with overrideAccess).
+    // Only the token's sha256 hash is stored, never the token itself.
+    {
+      name: 'emailVerified',
+      type: 'checkbox',
+      defaultValue: true,
+      label: 'Email verified',
+      access: { create: superAdminField, update: superAdminField },
+    },
+    {
+      name: 'verifyTokenHash',
+      type: 'text',
+      index: true,
+      hidden: true,
+      access: { create: superAdminField, read: superAdminField, update: superAdminField },
+    },
+    {
+      name: 'verifyTokenExp',
+      type: 'date',
+      hidden: true,
+      access: { create: superAdminField, read: superAdminField, update: superAdminField },
     },
     {
       name: 'specialty',

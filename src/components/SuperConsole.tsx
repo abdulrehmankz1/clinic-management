@@ -25,6 +25,8 @@ export type TenantRow = {
   appointments: number
   createdAt: string
   onboardingSource?: string | null
+  /** Pending signups only: the owner hasn't confirmed their email yet. */
+  ownerUnverified?: boolean
 }
 
 export type ActivityRow = {
@@ -178,6 +180,14 @@ export function SuperConsole({ tenants, activity = [] }: { tenants: TenantRow[];
                     {t.city || '—'} · {new Date(t.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                   </div>
                 </div>
+                {t.ownerUnverified && (
+                  <span
+                    className="shrink-0 rounded-full border border-amber/30 bg-amber-soft px-2 py-0.5 text-[11px] font-medium text-amber"
+                    title="Approval unlocks once the owner confirms their email."
+                  >
+                    Email unverified
+                  </span>
+                )}
                 <div className="flex shrink-0 items-center gap-2">
                   <button
                     className="text-xs font-medium text-faint transition-colors hover:text-red disabled:opacity-50"
@@ -188,7 +198,8 @@ export function SuperConsole({ tenants, activity = [] }: { tenants: TenantRow[];
                   </button>
                   <button
                     className={`${btnPrimary} h-8 px-3 text-xs`}
-                    disabled={pending}
+                    disabled={pending || t.ownerUnverified}
+                    title={t.ownerUnverified ? "The owner hasn't verified their email yet." : undefined}
                     onClick={() => setStatus(t.id, 'active')}
                   >
                     Approve

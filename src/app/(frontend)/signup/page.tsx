@@ -17,7 +17,7 @@ const defaultsFor = (country: string) =>
 export default function SignupPage() {
   const [pending, start] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const [done, setDone] = useState(false)
+  const [done, setDone] = useState<null | { verifyEmail: boolean }>(null)
   const [startedAt] = useState(() => Date.now())
 
   const initial = defaultsFor(DEFAULT_COUNTRY)
@@ -45,7 +45,7 @@ export default function SignupPage() {
     setError(null)
     start(async () => {
       const res = await signupAction({ ...form, startedAt })
-      if (res.ok) setDone(true)
+      if (res.ok) setDone({ verifyEmail: res.data.verifyEmail })
       else setError(res.message)
     })
   }
@@ -109,11 +109,12 @@ export default function SignupPage() {
                 <IconCheck size={22} strokeWidth={3} />
               </span>
               <h1 className="font-display text-2xl font-semibold tracking-tight">
-                Clinic created — pending approval
+                {done.verifyEmail ? 'Check your inbox' : 'Clinic created — pending approval'}
               </h1>
               <p className="mt-2 text-sm text-muted-foreground">
-                Thanks! Your clinic has been created and is now awaiting admin approval. You&rsquo;ll
-                be able to sign in as soon as it&rsquo;s approved.
+                {done.verifyEmail
+                  ? 'Thanks! We sent a confirmation link to your email. Click it to verify your address — your clinic then goes to admin approval, and you can sign in once it’s approved.'
+                  : 'Thanks! Your clinic has been created and is now awaiting admin approval. You’ll be able to sign in as soon as it’s approved.'}
               </p>
               <Link href="/login" className={`${btnPrimary} mt-6 w-full`}>
                 Go to sign in

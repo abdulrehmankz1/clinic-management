@@ -87,7 +87,11 @@ describe('v3 — self-serve signup', () => {
   // ---- Admin-approval onboarding: pending blocks login until approved ----
 
   it('blocks login while pending and allows it once approved', async () => {
-    const res = await signupClinic(payload, input({ email: 'pending@signup.test' }))
+    // Verification off explicitly — this test is about the pending gate alone, and
+    // the default tracks whether RESEND_API_KEY happens to be set in the local env.
+    const res = await signupClinic(payload, input({ email: 'pending@signup.test' }), {
+      requireEmailVerification: false,
+    })
 
     // Pending clinic owner cannot sign in yet.
     await rejectsWithCode(

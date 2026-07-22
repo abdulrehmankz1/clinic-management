@@ -6,6 +6,7 @@
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { runDailyDigest } from '@/lib/digest'
+import { purgeExpiredUnverifiedSignups } from '@/lib/verification'
 import { ERROR_CODES } from '@/lib/constants'
 
 export async function GET(req: Request) {
@@ -18,5 +19,16 @@ export async function GET(req: Request) {
   const payload = await getPayload({ config: await config })
   const force = new URL(req.url).searchParams.get('force') === '1'
   const summary = await runDailyDigest({ payload, force })
-  return Response.json({ ok: true, ...summary })
+
+  // Housekeeping rides the same hourly tick: self-serve signups whose owner never
+  // verified within the grace window are swept out (BACKLOG §1.1). Best-effort —
+  // a purge hiccup must never fail the digest.
+  let purged: string[] = []
+  try {
+    purged = (await purgeExpiredUnverifiedSignups(payload)).purged
+  } catch (err) {
+    payload.logger?.error?.({ err }, 'unverified signup purge failed (non-fatal)')
+  }
+
+  return Response.json({ ok: true, ...summary, purged })
 }

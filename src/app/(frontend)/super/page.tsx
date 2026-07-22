@@ -21,6 +21,19 @@ export default async function SuperPage() {
         payload.count({ collection: 'patients', where: { tenant: { equals: t.id } }, overrideAccess: true }),
         payload.count({ collection: 'appointments', where: { tenant: { equals: t.id } }, overrideAccess: true }),
       ])
+      // A pending signup can only be approved once the owner verified their email
+      // (BACKLOG §1.1) — the queue shows a badge and holds the Approve button.
+      let ownerUnverified = false
+      if (t.status === 'pending') {
+        const owners = await payload.find({
+          collection: 'users',
+          where: { tenant: { equals: t.id }, role: { equals: 'owner' } },
+          limit: 1,
+          depth: 0,
+          overrideAccess: true,
+        })
+        ownerUnverified = (owners.docs[0] as User | undefined)?.emailVerified === false
+      }
       return {
         id: String(t.id),
         name: t.name,
@@ -40,6 +53,7 @@ export default async function SuperPage() {
         appointments: appointments.totalDocs,
         createdAt: t.createdAt,
         onboardingSource: t.onboardingSource,
+        ownerUnverified,
       }
     }),
   )
