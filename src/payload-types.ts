@@ -377,7 +377,8 @@ export interface AuditLog {
     | 'tenant.reactivated'
     | 'plan.upgrade-requested'
     | 'plan.upgrade-rejected'
-    | 'plan.changed';
+    | 'plan.changed'
+    | 'export.generated';
   targetCollection: string;
   targetId: string;
   /**
