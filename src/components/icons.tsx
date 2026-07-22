@@ -30,4 +30,6 @@ export {
   Wallet as IconWallet,
   CreditCard as IconCreditCard,
   MessageCircle as IconWhatsApp,
+  ChartColumn as IconChart,
+  Download as IconDownload,
 } from 'lucide-react'
