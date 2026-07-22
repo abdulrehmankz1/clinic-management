@@ -133,6 +133,9 @@ export const AUDIT_ACTIONS = [
   { value: 'plan.upgrade-requested', label: 'Upgrade requested' },
   { value: 'plan.upgrade-rejected', label: 'Upgrade declined' },
   { value: 'plan.changed', label: 'Plan changed' },
+  // v4 — reports & exports. Patient exports carry PII (phone numbers), so every
+  // export is an auditable event.
+  { value: 'export.generated', label: 'Data exported' },
 ] as const
 export type AuditAction = (typeof AUDIT_ACTIONS)[number]['value']
 
