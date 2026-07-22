@@ -7,12 +7,7 @@
 import type { Payload } from 'payload'
 import { APIError } from 'payload'
 import { ERROR_CODES } from './constants'
-import { sendEmail, type SendEmail } from './email'
-
-/** Absolute origin for links in emails — NEXT_PUBLIC_APP_URL in prod, localhost in dev. */
-export function appBaseUrl(): string {
-  return (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/+$/, '')
-}
+import { appBaseUrl, sendEmail, type SendEmail } from './email'
 
 export type ResetRequestSummary = {
   sent: boolean

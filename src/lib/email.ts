@@ -8,6 +8,11 @@ export function emailEnabled(): boolean {
   return Boolean(process.env.RESEND_API_KEY)
 }
 
+/** Absolute origin for links in emails — NEXT_PUBLIC_APP_URL in prod, localhost in dev. */
+export function appBaseUrl(): string {
+  return (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/+$/, '')
+}
+
 export type SendEmailInput = { to: string; subject: string; html: string }
 export type SendEmailResult = { ok: boolean; skipped?: boolean; error?: string }
 export type SendEmail = (input: SendEmailInput) => Promise<SendEmailResult>

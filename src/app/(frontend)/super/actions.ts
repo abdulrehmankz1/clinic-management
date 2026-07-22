@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { getCurrentUser, getPayloadClient } from '@/lib/auth'
+import { notifySignupDecision } from '@/lib/approvalEmail'
 import { toActionError, type ActionResult } from '@/lib/errors'
 import {
   DEFAULT_APPOINTMENT_DURATION,
@@ -128,6 +129,15 @@ export async function setClinicStatus(
   const ctx = await superCtx()
   if (!ctx) return { ok: false, code: 'FORBIDDEN', message: "You don't have permission to do that." }
   try {
+    // Old status decides whether this is a signup decision (pending → active/suspended)
+    // or a plain suspend/reactivate of a live clinic.
+    const before = await ctx.payload.findByID({
+      collection: 'tenants',
+      id,
+      depth: 0,
+      overrideAccess: true,
+    })
+
     await ctx.payload.update({
       collection: 'tenants',
       id,
@@ -135,6 +145,27 @@ export async function setClinicStatus(
       user: ctx.user,
       data: { status } as never,
     })
+
+    // Signup decision → tell the owner (BACKLOG §1.2). Best-effort: a mail hiccup
+    // must never roll back or fail the decision itself.
+    if (before.status === 'pending') {
+      const decision = status === 'active' ? 'approved' : 'rejected'
+      try {
+        const summary = await notifySignupDecision(ctx.payload, before, decision)
+        if (!summary.sent) {
+          ctx.payload.logger?.info?.(
+            { tenant: before.name, decision, skipped: summary.skipped },
+            'signup decision email not sent',
+          )
+        }
+      } catch (err) {
+        ctx.payload.logger?.error?.(
+          { err, tenant: before.name, decision },
+          'signup decision email failed (non-fatal)',
+        )
+      }
+    }
+
     revalidatePath('/super')
     return { ok: true, data: null }
   } catch (err) {
