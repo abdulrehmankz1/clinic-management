@@ -3,7 +3,7 @@
 // in the tenant's timezone so "today" matches what the clinic sees.
 
 import type { Payload, Where } from 'payload'
-import type { Appointment, Invoice, Patient, Tenant } from '@/payload-types'
+import type { Appointment, Invoice, Patient, Tenant, User, Visit } from '@/payload-types'
 import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from './constants'
 
 /** Offset (tz - UTC) in ms at a given instant. */
@@ -228,5 +228,205 @@ export async function getRevenueData(
     outstanding,
     series,
     currency,
+  }
+}
+
+// --- v4-A: monthly report ---------------------------------------------------
+
+/**
+ * UTC instants bounding a whole month on the tenant's wall clock (month 1–12).
+ * "June" for a Karachi clinic is not "June UTC" — boundaries respect the
+ * tenant's timezone (v4 spec §A.2).
+ */
+export function monthRangeUtc(tz: string, year: number, month: number): { start: Date; end: Date } {
+  const startGuess = new Date(Date.UTC(year, month - 1, 1))
+  const endGuess = new Date(Date.UTC(year, month, 1))
+  return {
+    start: new Date(startGuess.getTime() - tzOffsetMs(startGuess, tz)),
+    end: new Date(endGuess.getTime() - tzOffsetMs(endGuess, tz)),
+  }
+}
+
+export type DoctorReportRow = {
+  id: string
+  name: string
+  total: number
+  completed: number
+  noShows: number
+  /** no-shows / total appointments that month, 0–1. */
+  noShowRate: number
+  /** Payments received that month on invoices whose visit belongs to this doctor. */
+  revenue: number
+}
+
+export type MonthlyReport = {
+  year: number
+  month: number
+  currency: string
+  appointments: {
+    total: number
+    completed: number
+    cancelled: number
+    noShows: number
+    /** completed / total, 0–1 (0 when the month is empty). */
+    completionRate: number
+  }
+  newPatients: number
+  /** Payments received inside the month (voided invoices excluded). */
+  revenueCollected: number
+  /** Balance still due on invoices *created* inside the month. */
+  outstandingAdded: number
+  /** One bucket per calendar day of the month, tenant-local. */
+  daily: { label: string; amount: number }[]
+  doctors: DoctorReportRow[]
+}
+
+/**
+ * Everything the owner's monthly report shows. Same demo-scale discipline as
+ * getRevenueData: counts stay DB-side where cheap; the month's appointments and
+ * the tenant's invoices are read once (bounded) and reduced in JS, because
+ * payments live in a nested array Mongo can't sum for us.
+ */
+export async function getMonthlyReport(
+  payload: Payload,
+  tenantID: string,
+  tenant: Tenant | null,
+  year: number,
+  month: number,
+): Promise<MonthlyReport> {
+  const tz = tzOf(tenant)
+  const currency = tenant?.settings?.currency || DEFAULT_CURRENCY
+  const { start, end } = monthRangeUtc(tz, year, month)
+  const inMonth = (iso: string | null | undefined): boolean => {
+    if (!iso) return false
+    const t = new Date(iso).getTime()
+    return t >= start.getTime() && t < end.getTime()
+  }
+
+  const [apptsRes, invoicesRes, doctorsRes, newPatients] = await Promise.all([
+    payload.find({
+      collection: 'appointments',
+      where: {
+        tenant: { equals: tenantID },
+        start: { greater_than_equal: start.toISOString(), less_than: end.toISOString() },
+      },
+      limit: 5000,
+      depth: 0,
+      overrideAccess: true,
+    }),
+    // All non-voided invoices, not just the month's: a payment received this month
+    // may sit on an invoice created earlier. depth 1 populates the visit, whose
+    // doctor id drives the per-doctor revenue split.
+    payload.find({
+      collection: 'invoices',
+      where: { tenant: { equals: tenantID }, voided: { not_equals: true } },
+      limit: 1000,
+      depth: 1,
+      overrideAccess: true,
+    }),
+    payload.find({
+      collection: 'users',
+      where: { tenant: { equals: tenantID }, role: { equals: 'doctor' } },
+      limit: 100,
+      depth: 0,
+      overrideAccess: true,
+    }),
+    payload
+      .count({
+        collection: 'patients',
+        where: {
+          tenant: { equals: tenantID },
+          createdAt: { greater_than_equal: start.toISOString(), less_than: end.toISOString() },
+        },
+        overrideAccess: true,
+      })
+      .then((r) => r.totalDocs),
+  ])
+
+  // --- appointments: summary + per-doctor tallies from one pass ---
+  const summary = { total: 0, completed: 0, cancelled: 0, noShows: 0 }
+  const byDoctor = new Map<string, { total: number; completed: number; noShows: number; revenue: number }>()
+  for (const d of doctorsRes.docs as User[]) {
+    byDoctor.set(String(d.id), { total: 0, completed: 0, noShows: 0, revenue: 0 })
+  }
+  const relId = (v: unknown): string =>
+    v && typeof v === 'object' && 'id' in (v as Record<string, unknown>)
+      ? String((v as { id: unknown }).id)
+      : String(v)
+
+  for (const a of apptsRes.docs as Appointment[]) {
+    summary.total += 1
+    if (a.status === 'completed') summary.completed += 1
+    if (a.status === 'cancelled') summary.cancelled += 1
+    if (a.status === 'no-show') summary.noShows += 1
+
+    const doc = byDoctor.get(relId(a.doctor))
+    if (doc) {
+      doc.total += 1
+      if (a.status === 'completed') doc.completed += 1
+      if (a.status === 'no-show') doc.noShows += 1
+    }
+  }
+
+  // --- revenue: month's payments, bucketed per tenant-local day + per doctor ---
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate()
+  const dailyAmounts = new Array(daysInMonth).fill(0) as number[]
+  let revenueCollected = 0
+  let outstandingAdded = 0
+
+  for (const inv of invoicesRes.docs as Invoice[]) {
+    const doctorId = inv.visit ? relId((inv.visit as Visit).doctor) : null
+    for (const p of inv.payments ?? []) {
+      if (!inMonth(p.receivedAt)) continue
+      const amt = Number(p.amount ?? 0)
+      revenueCollected += amt
+      // Calendar day on the tenant's wall clock — DST-safe (no fixed 24h math).
+      const day = Number(
+        new Date(p.receivedAt!).toLocaleDateString('en-CA', { timeZone: tz }).slice(8, 10),
+      )
+      if (day >= 1 && day <= daysInMonth) dailyAmounts[day - 1] += amt
+      if (doctorId && byDoctor.has(doctorId)) byDoctor.get(doctorId)!.revenue += amt
+    }
+    if (inMonth(inv.createdAt)) outstandingAdded += inv.balanceDue ?? 0
+  }
+
+  const monthLabel = new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString('en-GB', {
+    month: 'short',
+  })
+  const daily = dailyAmounts.map((amount, i) => ({
+    label: `${i + 1} ${monthLabel}`,
+    amount: Math.round(amount),
+  }))
+
+  const doctors: DoctorReportRow[] = (doctorsRes.docs as User[])
+    .map((d) => {
+      const t = byDoctor.get(String(d.id))!
+      return {
+        id: String(d.id),
+        name: d.name,
+        total: t.total,
+        completed: t.completed,
+        noShows: t.noShows,
+        noShowRate: t.total > 0 ? t.noShows / t.total : 0,
+        revenue: Math.round(t.revenue),
+      }
+    })
+    // Quiet doctors (no activity, no revenue) stay out of the report's way.
+    .filter((r) => r.total > 0 || r.revenue > 0)
+    .sort((a, b) => b.revenue - a.revenue || b.completed - a.completed)
+
+  return {
+    year,
+    month,
+    currency,
+    appointments: {
+      ...summary,
+      completionRate: summary.total > 0 ? summary.completed / summary.total : 0,
+    },
+    newPatients,
+    revenueCollected: Math.round(revenueCollected),
+    outstandingAdded: Math.round(outstandingAdded),
+    daily,
+    doctors,
   }
 }
