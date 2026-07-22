@@ -1,0 +1,36 @@
+# Hourly tick for the timezone-aware digest (v3 spec §6.1). Vercel's Hobby plan
+# only allows daily crons, which would break the design — the endpoint must fire
+# every hour so each tenant gets their digest at 07:00 *local* time. GitHub
+# Actions schedules are free and hourly, so the tick lives here instead; the
+# endpoint itself stays locked behind CRON_SECRET either way.
+#
+# Honest caveats (documented, acceptable for a digest):
+# - GitHub schedules can lag a few minutes (occasionally more at busy times).
+#   The 07:00 gate matches on the *hour*, so small delays are harmless; a delay
+#   past the top of the hour would skip that tenant for the day.
+# - GitHub disables schedules after ~60 days without repo activity — a push
+#   re-enables them.
+#
+# Repo settings needed:
+#   Variables: APP_URL     — the deployed origin, e.g. https://matab.vercel.app
+#   Secrets:   CRON_SECRET — same value as the Vercel env var
+
+name: digest-cron
+
+on:
+  schedule:
+    - cron: '0 * * * *' # every hour, on the hour (UTC)
+  workflow_dispatch: # manual runs for demos/debugging
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call the digest endpoint
+        run: |
+          curl -sS --fail-with-body --max-time 290 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/cron/daily-digest"
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
